@@ -16,13 +16,11 @@ class Generator(nn.Module):
             nn.PReLU()
         )
         
-        # [k3n64s1] - Residual Blocks (총 6개 정의됨, 논문에서는 16개 필요)
-        self.block2 = ResidualBlock(64)
-        self.block3 = ResidualBlock(64)
-        self.block4 = ResidualBlock(64)
-        self.block5 = ResidualBlock(64)
-        self.block6 = ResidualBlock(64)
-        
+        # 16개의 Residual Block 추가
+        self.residual_blocks = nn.Sequential(
+            *[ResidualBlock(64) for _ in range(16)]
+        )
+
         # [k3n64s1] - Skip Connection 이후 Conv + BatchNorm
         self.block7 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, padding=1),
@@ -40,15 +38,11 @@ class Generator(nn.Module):
         # 초기 Conv 블록
         block1 = self.block1(x)
         
-        # Residual Blocks
-        block2 = self.block2(block1)
-        block3 = self.block3(block2)
-        block4 = self.block4(block3)
-        block5 = self.block5(block4)
-        block6 = self.block6(block5)
-        
+        # 16개의 Residual Block
+        residual_out = self.residual_blocks(block1)  
+
         # Skip Connection
-        block7 = self.block7(block6)
+        block7 = self.block7(residual_out)
         
         # Upsample Blocks 및 Skip Connection 통합
         block8 = self.block8(block1 + block7)
@@ -101,12 +95,14 @@ class Discriminator(nn.Module):
             nn.BatchNorm2d(512),
             nn.LeakyReLU(0.2),
 
-            # Dense Layers - HR/SR 여부 판별
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(512, 1024, kernel_size=1),
-            nn.LeakyReLU(0.2),
-            nn.Conv2d(1024, 1, kernel_size=1)
+            # Dense Layers
+            nn.AdaptiveAvgPool2d(1),  # Adaptive Pooling으로 고정 크기 텐서 생성
+            nn.Conv2d(512, 1024, kernel_size=1),  # Dense(1024)
+            nn.LeakyReLU(0.2),  # Leaky ReLU 활성화
+            nn.Conv2d(1024, 1, kernel_size=1),  # Dense(1)
+            nn.Sigmoid()  # Sigmoid 활성화
         )
+
 
     def forward(self, x):
         # 배치 크기 계산 및 Sigmoid 출력
